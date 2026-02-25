@@ -5,7 +5,8 @@ const BASE_URL = 'https://sanand0.github.io/tdsdata/datadash/';
 
 async function scrapeAll() {
   const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
+  const context = await browser.newContext();
+  const page = await context.newPage();
 
   let grandTotal = 0;
 
@@ -13,18 +14,39 @@ async function scrapeAll() {
     const url = `${BASE_URL}?seed=${seed}`;
     console.log(`\nScraping seed ${seed}: ${url}`);
 
-    await page.goto(url, { waitUntil: 'networkidle' });
+    try {
+      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+    } catch (e) {
+      console.log(`  Seed ${seed}: page load timeout, trying anyway...`);
+    }
 
-    // Wait for tables to render
-    await page.waitForTimeout(2000);
+    // Wait for table to appear in DOM
+    try {
+      await page.waitForSelector('table td', { timeout: 15000 });
+    } catch (e) {
+      console.log(`  Seed ${seed}: no table found after waiting, skipping`);
+      continue;
+    }
 
-    // Extract all numbers from all table cells
-    const numbers = await page.$$eval('table td, table th', (cells) =>
-      cells
-        .map(cell => cell.innerText.trim())
-        .filter(text => text !== '' && !isNaN(text.replace(/,/g, '')))
-        .map(text => parseFloat(text.replace(/,/g, '')))
-    );
+    // Extra wait to ensure all rows are rendered
+    await page.waitForTimeout(3000);
+
+    // Log page HTML snippet for debugging
+    const tableCount = await page.$$eval('table', t => t.length);
+    console.log(`  Found ${tableCount} table(s) on page`);
+
+    // Extract all numeric values from all table cells
+    const numbers = await page.$$eval('table td', (cells) => {
+      const results = [];
+      for (const cell of cells) {
+        const text = cell.innerText.trim().replace(/,/g, '');
+        const num = parseFloat(text);
+        if (!isNaN(num) && text !== '') {
+          results.push(num);
+        }
+      }
+      return results;
+    });
 
     const seedTotal = numbers.reduce((sum, n) => sum + n, 0);
     console.log(`  Seed ${seed}: found ${numbers.length} numbers, subtotal = ${seedTotal}`);
@@ -39,6 +61,6 @@ async function scrapeAll() {
 }
 
 scrapeAll().catch(err => {
-  console.error(err);
+  console.error('Fatal error:', err);
   process.exit(1);
 });
