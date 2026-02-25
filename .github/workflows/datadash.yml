@@ -1,0 +1,32 @@
+name: DataDash QA Scraper
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Student - 23f2003592@ds.study.iitm.ac.in
+        run: echo "Running QA job for student 23f2003592@ds.study.iitm.ac.in"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        run: |
+          npm init -y
+          npm install playwright
+          npx playwright install chromium --with-deps
+
+      - name: Run scraper and print total
+        run: node scrape.js
